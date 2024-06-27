@@ -1,0 +1,52 @@
+import sys
+
+def extract_sos_to_eoi_hex(jpeg_data):
+    SOS = b'\xFF\xDA'
+    EOI = b'\xFF\xD9'
+    DUMMY = b'\xFF\x00'
+    RESTART_MARKERS = [bytes([0xFF, 0xD0 + i]) for i in range(8)]
+
+    sos_index = jpeg_data.find(SOS)
+
+    if sos_index == -1:
+        raise ValueError("SOS not found in the data.")
+    eoi_index = jpeg_data.find(EOI, sos_index)
+    if eoi_index == -1:
+        raise ValueError("EOI not found in the data.")
+    
+    eoi_index += len(EOI)
+    extracted_data = jpeg_data[sos_index + len(SOS):eoi_index - len(EOI)]
+    
+    hex_data_lines = []
+    flag = 0
+    i = 0
+
+    while i < len(extracted_data):
+        byte = extracted_data[i:i+1]
+        if i < len(extracted_data) - 1 and byte + extracted_data[i+1:i+2] in RESTART_MARKERS:
+            flag = 1
+            i += 2  
+            continue
+        elif i < len(extracted_data) - 1 and byte + extracted_data[i+1 : i+2] in DUMMY:
+            flag = 0
+            i += 2
+            line = f"{byte.hex().upper()} {flag}"
+
+        line = f"{byte.hex().upper()} {flag}"
+        hex_data_lines.append(line)
+        flag = 0
+        i += 1
+
+    return '\n'.join(hex_data_lines)
+
+if __name__ == "__main__":
+    input_filename = sys.argv[1]
+    output_filename = sys.argv[2]
+
+    with open(input_filename, 'rb') as file:
+        jpeg_data = file.read()
+
+    sos_to_eoi_data = extract_sos_to_eoi_hex(jpeg_data)
+
+    with open(output_filename, 'w') as file:
+        file.write(sos_to_eoi_data)
